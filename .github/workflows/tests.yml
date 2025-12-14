@@ -1,0 +1,73 @@
+name: Run code tests
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Build solution [Debug]
+        run: dotnet build --no-restore
+      - name: Test solution [Debug]
+        run: >
+          dotnet test --no-restore --no-build --collect "XPlat Code Coverage" --results-directory .
+          --
+          DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=lcov
+      # ==== code coverage reports ====
+      - name: Move coverage file
+        shell: bash
+        run: find ./**/coverage.info -exec mv {} ./output.lcov.info \;
+      - name: Convert coverage report to clover & htmlsummary format
+        uses: danielpalme/ReportGenerator-GitHub-Action@4.7.1
+        with:
+          reports: 'output.lcov.info'
+          targetdir: '.'
+          reporttypes: 'Clover;HtmlSummary'
+          tag: 'test_${{ github.run_number }}'
+      - name: Convert coverage report to html
+        uses: danielpalme/ReportGenerator-GitHub-Action@4.7.1
+        with:
+          reports: 'output.lcov.info'
+          targetdir: './code_coverage'
+          reporttypes: 'Html'
+          tag: 'test_${{ github.run_number }}'
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test coverage reports
+          path: |
+            output.lcov.info
+            Clover.xml
+            code_coverage/**
+            summary.html
+      - name: Monitor coverage
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: slavcodev/coverage-monitor-action@1.2.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          clover_file: "Clover.xml"
+          threshold_alert: 60
+          threshold_warning: 80
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Check formatting
+        run: dotnet format --no-restore --verify-no-changes --severity error

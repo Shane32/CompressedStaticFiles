@@ -1,0 +1,39 @@
+namespace Microsoft.AspNetCore.Builder
+{
+    public static class CompressedStaticFilesExtensions
+    {
+        public static Microsoft.AspNetCore.Builder.IApplicationBuilder UseCompressedStaticFiles(this Microsoft.AspNetCore.Builder.IApplicationBuilder app, Shane32.CompressedStaticFiles.CompressedStaticFileOptions? options = null) { }
+    }
+}
+namespace Shane32.CompressedStaticFiles
+{
+    public class CompressedFileProvider : Microsoft.Extensions.FileProviders.IFileProvider
+    {
+        public CompressedFileProvider(Microsoft.Extensions.FileProviders.IFileProvider innerProvider, string extension) { }
+        public Microsoft.Extensions.FileProviders.IDirectoryContents GetDirectoryContents(string subpath) { }
+        public Microsoft.Extensions.FileProviders.IFileInfo GetFileInfo(string subpath) { }
+        public Microsoft.Extensions.Primitives.IChangeToken Watch(string filter) { }
+    }
+    public class CompressedStaticFileOptions
+    {
+        public CompressedStaticFileOptions() { }
+        public Microsoft.AspNetCore.StaticFiles.IContentTypeProvider ContentTypeProvider { get; set; }
+        public string? DefaultContentType { get; set; }
+        public System.Collections.Generic.Dictionary<string, Shane32.CompressedStaticFiles.EncodingOptions> Encodings { get; set; }
+        public string? FileSystemPath { get; set; }
+        public System.Action<Microsoft.AspNetCore.StaticFiles.StaticFileResponseContext> OnPrepareResponse { get; set; }
+        public System.Func<Microsoft.AspNetCore.StaticFiles.StaticFileResponseContext, System.Threading.Tasks.Task> OnPrepareResponseAsync { get; set; }
+        public Microsoft.AspNetCore.Http.PathString RequestPath { get; set; }
+        public bool ServeUnknownFileTypes { get; set; }
+    }
+    [System.Runtime.CompilerServices.RequiredMember]
+    public class EncodingOptions
+    {
+        [System.Obsolete("Constructors of types with required members are not supported in this version of " +
+            "your compiler.", true)]
+        public EncodingOptions() { }
+        [System.Runtime.CompilerServices.RequiredMember]
+        public string Extension { get; set; }
+        public int Priority { get; set; }
+    }
+}
