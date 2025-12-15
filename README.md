@@ -22,31 +22,25 @@ app.Run();
 
 ### Vite Plugin Example
 
-For Vite projects, use the `vite-plugin-compression` plugin:
+For Vite projects, use the `vite-plugin-compression2` plugin:
 
 ```bash
-npm install vite-plugin-compression --save-dev
+npm install vite-plugin-compression2 --save-dev
 ```
 
 ```javascript
 // vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import compression from 'vite-plugin-compression'
+import compression from 'vite-plugin-compression2'
 
 export default defineConfig({
   plugins: [
     react(),
-    // Generate .gz files
+    // Generate both .gz and .br files
     compression({
-      algorithm: 'gzip',
-      ext: '.gz'
+      algorithms: ["gzip", "brotliCompress"],
     }),
-    // Generate .br files
-    compression({
-      algorithm: 'brotliCompress',
-      ext: '.br'
-    })
   ]
 })
 ```
