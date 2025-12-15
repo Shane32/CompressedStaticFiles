@@ -131,6 +131,8 @@ The middleware intelligently serves compressed files based on the client's `Acce
 
 The middleware automatically sets the `Content-Encoding` header when serving compressed files.
 
+> **Note:** When using ASP.NET Core's [`UseResponseCompression`](https://learn.microsoft.com/en-us/aspnet/core/performance/response-compression) middleware, it will automatically ignore any files served by this middleware that are already compressed. This prevents double compression and ensures optimal performance.
+
 ### Example Scenarios
 
 - `Accept-Encoding: br, gzip` → Serves Brotli (both have quality 1.0, Brotli has priority 0)
