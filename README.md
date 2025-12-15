@@ -4,7 +4,7 @@
 
 ASP.NET Core middleware that automatically serves pre-compressed static files (Brotli and Gzip) when available, falling back to uncompressed files.
 
-## Quick Start
+## 🚀 Quick Start
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -16,7 +16,7 @@ app.UseCompressedStaticFiles();
 app.Run();
 ```
 
-## Compression of Static Assets
+## 📦 Compression of Static Assets
 
 .NET 10+ automatically compresses static assets during publish. For earlier versions or when copying a project separately after build (such as a Vite React project), you'll need to compress files manually.
 
@@ -51,7 +51,7 @@ export default defineConfig({
 })
 ```
 
-## Configuration Options
+## ⚙️ Configuration Options
 
 The `CompressedStaticFileOptions` class provides the following configuration options:
 
@@ -75,7 +75,7 @@ The `EncodingOptions` class configures each supported encoding:
 | `Extension` | `string` | The file extension for this encoding (e.g., `".br"`, `".gz"`). |
 | `Priority` | `int` | Priority for this encoding when client quality values are equal. Lower values have higher priority. Default is 0. |
 
-## Advanced Examples
+## 🔧 Advanced Examples
 
 ### Custom Directory with Cache Headers
 
@@ -113,7 +113,7 @@ app.UseCompressedStaticFiles(new CompressedStaticFileOptions
 });
 ```
 
-## How It Works
+## 🔍 How It Works
 
 This middleware is built on top of ASP.NET Core's `UseStaticFiles` middleware. As such, all security protections provided by ASP.NET Core are inherited, including:
 
@@ -148,11 +148,11 @@ When no `ContentTypeProvider` is specified, the middleware creates a default `Fi
 
 If you provide a custom `ContentTypeProvider`, you should ensure it does not include mappings for your compressed file extensions.
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) file for details.
 
-## Credits
+## 🙏 Credits
 
 Glory to Jehovah, Lord of Lords and King of Kings, creator of Heaven and Earth, who through his Son Jesus Christ,
 has reedemed me to become a child of God. -Shane32
