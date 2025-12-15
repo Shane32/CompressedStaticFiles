@@ -70,6 +70,12 @@ public static class CompressedStaticFilesExtensions
         // Use a single middleware that tries encodings in quality order
         app.Use(next => {
             return async context => {
+                // Short-circuit if the request path doesn't match the configured RequestPath
+                if (!context.Request.Path.StartsWithSegments(options.RequestPath, out var remainingPath)) {
+                    await next(context).ConfigureAwait(false);
+                    return;
+                }
+
                 // Get all acceptable encodings ordered by quality (highest first)
                 // When qualities are equal, prefer encodings with lower priority values
                 var orderedEncodings = GetOrderedAcceptableEncodings(
