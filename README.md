@@ -64,7 +64,7 @@ The `CompressedStaticFileOptions` class provides the following configuration opt
 | `OnPrepareResponse` | `Action<StaticFileResponseContext>?` | [See StaticFileOptions.OnPrepareResponse](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.staticfileoptions.onprepareresponse) |
 | `OnPrepareResponseAsync` | `Func<StaticFileResponseContext, Task>?` | [See StaticFileOptions.OnPrepareResponseAsync](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.staticfileoptions.onprepareresponseasync) |
 | `FileSystemPath` | `string?` | The physical file system path to serve files from. If not specified, the web root path will be used. |
-| `Encodings` | `Dictionary<string, EncodingOptions>` | Dictionary mapping Content-Encoding values to their configuration (file extension and priority). Default includes Brotli (`"br"` with priority 0) and Gzip (`"gzip"` with priority 1). |
+| `Encodings` | `Dictionary<string, EncodingOptions>` | Dictionary mapping Content-Encoding values to their configuration (file extension and priority). Default includes Brotli (`"br"` with extension `.br` and priority 0) and Gzip (`"gzip"` with extension `.gz` and priority 1). |
 
 ### EncodingOptions
 
