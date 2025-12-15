@@ -206,4 +206,33 @@ public class CompressedStaticFilesTests
 
         content.ShouldBe(expectedContent);
     }
+
+    [Theory]
+    [InlineData("/../wwwroot/sample.txt")]
+    [InlineData("/../dontreadme.txt")]
+    public async Task UseCompressedStaticFiles_PathTraversalAttempt_Returns404(string path)
+    {
+        // Arrange
+        using var host = await new HostBuilder()
+            .ConfigureWebHost(webBuilder => {
+                webBuilder
+                    .UseTestServer()
+                    .Configure(app => {
+                        app.UseCompressedStaticFiles(new CompressedStaticFileOptions {
+                            FileSystemPath = _wwwrootPath
+                        });
+                    });
+            })
+            .StartAsync();
+
+        var client = host.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add("Accept-Encoding", "br, gzip");
+
+        // Act
+        var response = await client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
 }

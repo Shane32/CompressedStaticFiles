@@ -115,6 +115,13 @@ app.UseCompressedStaticFiles(new CompressedStaticFileOptions
 
 ## How It Works
 
+This middleware is built on top of ASP.NET Core's `UseStaticFiles` middleware. As such, all security protections provided by ASP.NET Core are inherited, including:
+
+- Protection against path traversal attacks (e.g., `../` sequences)
+- Invalid filename character validation
+- Query string handling (e.g., `/sample.txt?ab=cd`)
+- Other built-in security features of the static files middleware
+
 The middleware intelligently serves compressed files based on the client's `Accept-Encoding` header:
 
 1. **Quality-based selection**: The middleware parses quality values (q-values) from the `Accept-Encoding` header and prioritizes encodings with higher quality values
