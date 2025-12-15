@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <Description>Provides ASP.Net Core static file middleware that can serve compressed files.</Description>
+    <Description>ASP.NET Core middleware that automatically serves pre-compressed static files (Brotli, Gzip, or custom encodings) based on client Accept-Encoding headers with quality value support, falling back to uncompressed files when needed.</Description>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
