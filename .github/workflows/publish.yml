@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: Production
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Check github.ref starts with 'refs/tags/'
@@ -27,9 +31,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          source-url: https://api.nuget.org/v3/index.json
-        env:
-          NUGET_AUTH_TOKEN: ${{secrets.NUGET_AUTH_TOKEN}}
       - name: Install dependencies
         run: dotnet restore
       - name: Build solution [Release]
@@ -41,8 +42,15 @@ jobs:
         with:
           name: Nuget packages
           path: out/*
+      - name: Authenticate to NuGet
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: Shane32
       - name: Publish Nuget packages to NuGet registry
-        run: dotnet nuget push "out/*" -k ${{secrets.NUGET_AUTH_TOKEN}}
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "out/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
       - name: Upload nuget packages as release artifacts
         uses: actions/github-script@v2
         with:
