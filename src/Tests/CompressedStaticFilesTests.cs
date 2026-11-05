@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Hosting;
 
@@ -234,5 +236,206 @@ public class CompressedStaticFilesTests
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData("image.png", "image/png", "br")]
+    [InlineData("image.png", "image/png", "gzip")]
+    [InlineData("image.png", "image/png", "br, gzip")]
+    [InlineData("font.ttf", "application/x-font-ttf", "br")]
+    [InlineData("font.ttf", "application/x-font-ttf", "gzip")]
+    [InlineData("font.ttf", "application/x-font-ttf", "br, gzip")]
+    public async Task UseCompressedStaticFiles_MissingCompressedFiles_ServesUncompressedAsset(string filename, string contentType, string acceptEncoding)
+    {
+        using var files = new TemporaryStaticFiles();
+        var content = Encoding.UTF8.GetBytes("uncompressed asset");
+        File.WriteAllBytes(Path.Combine(files.Path, filename), content);
+        using var host = await StartFallbackHost(files.Path);
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/static/" + filename);
+        request.Headers.Add("Accept-Encoding", acceptEncoding);
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe(contentType);
+        response.Content.Headers.ContentEncoding.ShouldBeEmpty();
+        (await response.Content.ReadAsByteArrayAsync()).ShouldBe(content);
+    }
+
+    [Fact]
+    public async Task UseCompressedStaticFiles_MissingPreferredEncoding_ServesGzip()
+    {
+        using var files = new TemporaryStaticFiles();
+        var content = Encoding.UTF8.GetBytes("gzip fallback");
+        File.WriteAllBytes(Path.Combine(files.Path, "sample.txt"), content);
+        using (var output = File.Create(Path.Combine(files.Path, "sample.txt.gz"))) {
+            using var gzip = new GZipStream(output, CompressionLevel.Optimal);
+            gzip.Write(content);
+        }
+        using var host = await StartFallbackHost(files.Path);
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/static/sample.txt");
+        request.Headers.Add("Accept-Encoding", "br, gzip");
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Content.Headers.ContentEncoding.ShouldContain("gzip");
+        using var compressed = new MemoryStream(await response.Content.ReadAsByteArrayAsync());
+        using var decompressor = new GZipStream(compressed, CompressionMode.Decompress);
+        using var decoded = new MemoryStream();
+        await decompressor.CopyToAsync(decoded);
+        decoded.ToArray().ShouldBe(content);
+    }
+
+    [Theory]
+    [InlineData("HEAD", HttpStatusCode.OK)]
+    [InlineData("conditional", HttpStatusCode.NotModified)]
+    [InlineData("range", HttpStatusCode.PartialContent)]
+    public async Task UseCompressedStaticFiles_MissingCompressedFiles_PreservesHttpSemantics(string scenario, HttpStatusCode expectedStatus)
+    {
+        using var files = new TemporaryStaticFiles();
+        var content = Encoding.UTF8.GetBytes("uncompressed fallback content");
+        File.WriteAllBytes(Path.Combine(files.Path, "sample.txt"), content);
+        using var host = await StartFallbackHost(files.Path);
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(scenario == "HEAD" ? HttpMethod.Head : HttpMethod.Get, "/static/sample.txt");
+        request.Headers.Add("Accept-Encoding", "br, gzip");
+        if (scenario == "conditional") {
+            using var initialResponse = await client.GetAsync("/static/sample.txt");
+            initialResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            request.Headers.IfNoneMatch.Add(initialResponse.Headers.ETag!);
+        } else if (scenario == "range") {
+            request.Headers.Range = new RangeHeaderValue(0, 3);
+        }
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(expectedStatus);
+        response.Content.Headers.ContentEncoding.ShouldBeEmpty();
+        var body = await response.Content.ReadAsByteArrayAsync();
+        if (scenario == "range") {
+            body.ShouldBe(content[..4]);
+            response.Content.Headers.ContentRange?.ToString().ShouldBe($"bytes 0-3/{content.Length}");
+        } else {
+            body.ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task UseCompressedStaticFiles_AllRepresentationsMissing_Returns404()
+    {
+        using var files = new TemporaryStaticFiles();
+        using var host = await StartFallbackHost(files.Path);
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/static/missing.png");
+        request.Headers.Add("Accept-Encoding", "br, gzip");
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await response.Content.ReadAsByteArrayAsync()).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(StatusCodes.Status200OK)]
+    [InlineData(StatusCodes.Status202Accepted)]
+    public async Task UseCompressedStaticFiles_AllRepresentationsMissing_PreservesStatusForNextMiddleware(int initialStatus)
+    {
+        using var files = new TemporaryStaticFiles();
+        using var host = await StartFallbackHost(
+            files.Path,
+            before: app => app.Use(async (context, next) => {
+                context.Response.StatusCode = initialStatus;
+                await next(context);
+            }),
+            after: app => app.Run(async context => {
+                context.Response.StatusCode.ShouldBe(initialStatus);
+                await context.Response.WriteAsync("downstream fallback");
+            }));
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/static/missing.png");
+        request.Headers.Add("Accept-Encoding", "br, gzip");
+
+        using var response = await client.SendAsync(request);
+
+        ((int)response.StatusCode).ShouldBe(initialStatus);
+        (await response.Content.ReadAsStringAsync()).ShouldBe("downstream fallback");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UseCompressedStaticFiles_HeadWithNotFoundStatus_DoesNotInvokeNextMiddleware(bool setStatusInPrepareResponse)
+    {
+        using var files = new TemporaryStaticFiles();
+        var content = Encoding.UTF8.GetBytes("handled HEAD response");
+        File.WriteAllBytes(Path.Combine(files.Path, "sample.txt"), content);
+        var nextCalled = false;
+        var prepared = false;
+        using var host = await StartFallbackHost(
+            files.Path,
+            before: app => app.Use(async (context, next) => {
+                if (!setStatusInPrepareResponse)
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                await next(context);
+            }),
+            after: app => app.Run(context => {
+                nextCalled = true;
+                context.Response.StatusCode = StatusCodes.Status418ImATeapot;
+                return Task.CompletedTask;
+            }),
+            configureOptions: options => options.OnPrepareResponse = context => {
+                prepared = true;
+                if (setStatusInPrepareResponse)
+                    context.Context.Response.StatusCode = StatusCodes.Status404NotFound;
+            });
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(HttpMethod.Head, "/static/sample.txt");
+        request.Headers.Add("Accept-Encoding", "br, gzip");
+
+        using var response = await client.SendAsync(request);
+
+        prepared.ShouldBeTrue();
+        nextCalled.ShouldBeFalse();
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentLength.ShouldBe(content.Length);
+        (await response.Content.ReadAsByteArrayAsync()).ShouldBeEmpty();
+    }
+
+    private static Task<IHost> StartFallbackHost(string directory, Action<IApplicationBuilder>? before = null, Action<IApplicationBuilder>? after = null, Action<CompressedStaticFileOptions>? configureOptions = null)
+    {
+        return new HostBuilder()
+            .ConfigureWebHost(webBuilder => {
+                webBuilder
+                    .UseTestServer()
+                    .Configure(app => {
+                        before?.Invoke(app);
+                        var options = new CompressedStaticFileOptions {
+                            FileSystemPath = directory,
+                            RequestPath = "/static",
+                        };
+                        configureOptions?.Invoke(options);
+                        app.UseCompressedStaticFiles(options);
+                        after?.Invoke(app);
+                    });
+            })
+            .StartAsync();
+    }
+
+    private sealed class TemporaryStaticFiles : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CompressedStaticFilesTests-" + Guid.NewGuid().ToString("N"));
+
+        public TemporaryStaticFiles()
+        {
+            Directory.CreateDirectory(Path);
+        }
+
+        public void Dispose()
+        {
+            Directory.Delete(Path, recursive: true);
+        }
     }
 }
