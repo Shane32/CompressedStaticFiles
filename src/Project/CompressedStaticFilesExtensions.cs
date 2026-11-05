@@ -48,6 +48,14 @@ public static class CompressedStaticFilesExtensions
             options.ContentTypeProvider = contentTypeProvider;
         }
 
+        // Mark branch fallthrough without letting ApplicationBuilder's default terminal set a 404.
+        // The key is unique to this middleware registration; the marker is local to each request.
+        var unhandledKey = new object();
+        RequestDelegate unhandled = context => {
+            context.Items[unhandledKey] = true;
+            return Task.CompletedTask;
+        };
+
         // Build pipelines for each supported encoding
         var encodingPipelines = new Dictionary<string, RequestDelegate>(StringComparer.OrdinalIgnoreCase);
         foreach (var kvp in options.Encodings) {
@@ -58,6 +66,7 @@ public static class CompressedStaticFilesExtensions
 
             var builder = app.New();
             builder.UseStaticFiles(staticFileOptions);
+            builder.Run(unhandled);
             encodingPipelines[encoding] = builder.Build();
         }
 
@@ -65,6 +74,7 @@ public static class CompressedStaticFilesExtensions
         var uncompressedOptions = CreateStaticFileOptions(options, physicalFileProvider, null);
         var uncompressedBuilder = app.New();
         uncompressedBuilder.UseStaticFiles(uncompressedOptions);
+        uncompressedBuilder.Run(unhandled);
         var uncompressedPipeline = uncompressedBuilder.Build();
 
         // Use a single middleware that tries encodings in quality order
@@ -89,8 +99,8 @@ public static class CompressedStaticFilesExtensions
                         // Try to serve the file with this encoding
                         await pipeline(context).ConfigureAwait(false);
 
-                        // If a file was served (status code set), we're done
-                        if (context.Response.HasStarted || context.Response.StatusCode != StatusCodes.Status404NotFound) {
+                        // Only the branch terminal marks a miss, including for HEAD and conditional requests.
+                        if (!context.Items.Remove(unhandledKey)) {
                             return;
                         }
                     }
@@ -100,7 +110,7 @@ public static class CompressedStaticFilesExtensions
                 await uncompressedPipeline(context).ConfigureAwait(false);
 
                 // If still not served, continue to next middleware
-                if (!context.Response.HasStarted && context.Response.StatusCode == StatusCodes.Status404NotFound) {
+                if (context.Items.Remove(unhandledKey)) {
                     await next(context).ConfigureAwait(false);
                 }
             };
